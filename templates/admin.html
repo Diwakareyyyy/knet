@@ -1,0 +1,58 @@
+{% extends "layout.html" %}
+{% block content %}
+{% if not session.admin %}
+  <h2 class="text-2xl font-bold mb-4">Admin Login</h2>
+  <form method="POST" class="bg-white p-6 rounded-2xl shadow max-w-sm space-y-3">
+    {% if error %}<div class="p-2 rounded bg-red-50 border border-red-200 text-red-800">{{ error }}</div>{% endif %}
+    <div>
+      <label class="block text-sm mb-1">Username</label>
+      <input type="text" name="username" class="w-full border rounded p-2" required>
+    </div>
+    <div>
+      <label class="block text-sm mb-1">Password</label>
+      <input type="password" name="password" class="w-full border rounded p-2" required>
+    </div>
+    <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg">Login</button>
+  </form>
+{% else %}
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-2xl font-bold">Admin Dashboard</h2>
+    <a href="/logout" class="text-rose-600 underline">Logout</a>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-8">
+    <div class="bg-white rounded-2xl shadow p-5">
+      <h3 class="font-bold text-lg mb-3">Found Items</h3>
+      {% if not found_items %}
+        <p class="text-slate-600">No items.</p>
+      {% else %}
+      <ul class="space-y-2">
+        {% for it in found_items %}
+          <li class="flex items-center justify-between">
+            <span class="truncate">{{ it['description'] }} <span class="text-slate-500 text-xs">({{ it['created_at'] }})</span></span>
+            <a href="/admin/delete/found/{{ it['id'] }}" class="text-rose-600 hover:underline">Delete</a>
+          </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+
+    <div class="bg-white rounded-2xl shadow p-5">
+      <h3 class="font-bold text-lg mb-3">Help Posts</h3>
+      {% if not posts %}
+        <p class="text-slate-600">No posts.</p>
+      {% else %}
+      <ul class="space-y-2">
+        {% for p in posts %}
+          <li class="flex items-center justify-between">
+            <span class="truncate">{{ p['title'] }} — by {{ p['requester_name'] or 'Anonymous' }}</span>
+            <div class="text-sm text-slate-600 mr-3">Msgs: {{ counts.get(p['id'], 0) }}</div>
+            <a href="/admin/delete/help/{{ p['id'] }}" class="text-rose-600 hover:underline">Delete</a>
+          </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-6">
+  <a href="/lost" class="group">
+    <div class="p-8 rounded-2xl shadow bg-rose-500 text-white text-center hover:-translate-y-1 transition" style="padding: 50px;margin-top: 225px;">
+      <div class="text-5xl mb-3">🔍</div>
+      <h2 class="text-xl font-bold">Lost</h2>
+      <p class="text-white/90 mt-2">Browse items posted by finders.</p>
+    </div>
+  </a>
+  <a href="/found" class="group">
+    <div class="p-8 rounded-2xl shadow bg-emerald-500 text-white text-center hover:-translate-y-1 transition"style="padding: 38px;margin-top: 225px;">
+      <div class="text-5xl mb-3">📤</div>
+      <h2 class="text-xl font-bold">Found</h2>
+      <p class="text-white/90 mt-2">Upload an item you found with image & contact.</p>
+    </div>
+  </a>
+  <a href="/help" class="group">
+    <div class="p-8 rounded-2xl shadow bg-indigo-500 text-white text-center hover:-translate-y-1 transition" style="padding: 50px;margin-top: 225px;">
+      <div class="text-5xl mb-3">🙋</div>
+      <h2 class="text-xl font-bold">Help</h2>
+      <p class="text-white/90 mt-2">Ask for help and chat 1-on-1.</p>
+    </div>
+  </a>
+</div>
+{% endblock %}

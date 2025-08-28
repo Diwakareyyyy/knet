@@ -1,0 +1,71 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2 class="text-2xl font-bold mb-2">Chat for: {{ post['title'] }}</h2>
+<p class="text-slate-600 mb-4">Posted by {{ post['requester_name'] or 'Anonymous' }} | Contact: {{ post['contact'] or '—' }}</p>
+
+{% if not chat_name %}
+<form method="POST" class="bg-white p-6 rounded-2xl shadow max-w-md space-y-3">
+  <label class="block text-sm">Enter your display name to join this chat</label>
+  <input type="text" name="name" required placeholder="e.g., Rahul (Hostel C-12)" class="w-full border rounded p-2">
+  <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg">Join Chat</button>
+</form>
+{% else %}
+<div class="bg-white rounded-2xl shadow p-4 mb-3">
+  <div class="flex items-center justify-between">
+    <div>Signed in as <span class="font-semibold">{{ chat_name }}</span></div>
+    <a href="/help/{{ post['id'] }}/chat" class="text-sm text-indigo-600 underline">Change name</a>
+  </div>
+</div>
+
+<div id="messages" class="bg-white rounded-2xl shadow p-4 h-80 overflow-y-auto"></div>
+
+<form id="sendForm" class="bg-white rounded-2xl shadow p-4 mt-3 grid md:grid-cols-7 gap-2 items-start">
+  <input type="hidden" name="sender_name" value="{{ chat_name }}"/>
+  <input class="border rounded p-2 md:col-span-4" type="text" name="content" placeholder="Type your message..." required />
+  <input class="border rounded p-2 md:col-span-2" type="text" name="receiver_name" placeholder="Send to (optional)" />
+  <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg md:col-span-1">Send</button>
+</form>
+
+<script>
+const helpId = {{ post['id'] }};
+const messagesDiv = document.getElementById('messages');
+const form = document.getElementById('sendForm');
+
+async function fetchMessages() {
+  try {
+    const res = await fetch(`/help/${helpId}/messages`);
+    const data = await res.json();
+    messagesDiv.innerHTML = '';
+    data.forEach(m => {
+      const wrap = document.createElement('div');
+      wrap.className = 'mb-2';
+      const toPart = m.receiver_name ? ` ➜ <span class="text-slate-600">@${m.receiver_name}</span>` : '';
+      wrap.innerHTML = `<div class="px-3 py-2 rounded-lg border">
+        <div class="text-sm text-slate-600"><span class="font-semibold">${m.sender_name || 'Anonymous'}</span>${toPart} • <span class="text-xs">${m.timestamp}</span></div>
+        <div class="mt-1">${m.content}</div>
+      </div>`;
+      messagesDiv.appendChild(wrap);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    });
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+setInterval(fetchMessages, 2000);
+fetchMessages();
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const formData = new FormData(form);
+  const res = await fetch(`/help/${helpId}/send`, { method: 'POST', body: formData });
+  if (res.ok) {
+    form.content.value = '';
+    fetchMessages();
+  } else {
+    alert('Failed to send.');
+  }
+});
+</script>
+{% endif %}
+{% endblock %}

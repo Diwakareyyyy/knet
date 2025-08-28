@@ -1,0 +1,2 @@
+/* Tailwind is used via CDN; add custom tweaks if needed */
+body { scroll-behavior: smooth; }
