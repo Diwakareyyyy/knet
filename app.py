@@ -1,70 +1,69 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_from_directory, flash
-import sqlite3, os, time
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
+from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
 from datetime import datetime
+import os, time, cloudinary, cloudinary.uploader
 
 # -------------------- Config --------------------
 app = Flask(__name__)
 app.secret_key = "change_this_secret_key"
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "lostfound.db")
-UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
+
+# Use Render PostgreSQL database (set in env variable for security)
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
+    "DATABASE_URL",
+    "postgresql://diwa_2203_k_net_user:8HHxgtbZ4Ap1pNFt8tIjEAFWzqmuRlpZ@dpg-d302if0gjchc73clqol0-a.oregon-postgres.render.com/diwa_2203_k_net"
+)
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db = SQLAlchemy(app)
+
+# Allowed file types
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
+
+# Admin creds
 ADMIN_USER = "Diwakar"
 ADMIN_PASS = "diwa@11"
 
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+# -------------------- Cloudinary Config --------------------
+cloudinary.config(
+    cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME", "your_cloud_name"),
+    api_key=os.environ.get("CLOUDINARY_API_KEY", "your_api_key"),
+    api_secret=os.environ.get("CLOUDINARY_API_SECRET", "your_api_secret")
+)
+
+# -------------------- Models --------------------
+class FoundItem(db.Model):
+    __tablename__ = "found_items"
+    id = db.Column(db.Integer, primary_key=True)
+    image = db.Column(db.String, nullable=False)   # URL from Cloudinary
+    description = db.Column(db.String, nullable=False)
+    contact = db.Column(db.String, nullable=False)
+    created_at = db.Column(db.String, default=datetime.utcnow().isoformat)
+
+class HelpPost(db.Model):
+    __tablename__ = "help_posts"
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String, nullable=False)
+    description = db.Column(db.String, nullable=False)
+    contact = db.Column(db.String, nullable=False)
+    requester_name = db.Column(db.String, nullable=False, default="Anonymous")
+    created_at = db.Column(db.String, default=datetime.utcnow().isoformat)
+
+class Message(db.Model):
+    __tablename__ = "messages"
+    id = db.Column(db.Integer, primary_key=True)
+    help_id = db.Column(db.Integer, db.ForeignKey("help_posts.id", ondelete="CASCADE"))
+    sender_name = db.Column(db.String, nullable=False)
+    receiver_name = db.Column(db.String, nullable=True)
+    content = db.Column(db.String, nullable=False)
+    timestamp = db.Column(db.String, default=datetime.utcnow().isoformat)
 
 # -------------------- Helpers --------------------
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def init_db():
-    conn = get_db()
-    c = conn.cursor()
-    # Items found by students that might match someone's lost belongings
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS found_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            image TEXT,
-            description TEXT,
-            contact TEXT,
-            created_at TEXT
-        )
-    """)
-    # Public help requests (e.g., "Need printout of syllabus")
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS help_posts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            description TEXT,
-            contact TEXT,
-            requester_name TEXT,
-            created_at TEXT
-        )
-    """)
-    # Messages under a given help request (basic 1-on-1 style chat)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            help_id INTEGER,
-            sender_name TEXT,
-            receiver_name TEXT,
-            content TEXT,
-            timestamp TEXT,
-            FOREIGN KEY(help_id) REFERENCES help_posts(id) ON DELETE CASCADE
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-init_db()
+with app.app_context():
+    db.create_all()
 
 # -------------------- Routes --------------------
 @app.route("/")
@@ -74,9 +73,7 @@ def index():
 # -------- Lost (List only) --------
 @app.route("/lost")
 def lost():
-    conn = get_db()
-    items = conn.execute("SELECT * FROM found_items ORDER BY id DESC").fetchall()
-    conn.close()
+    items = FoundItem.query.order_by(FoundItem.id.desc()).all()
     return render_template("lost.html", items=items)
 
 # -------- Found (Upload) --------
@@ -94,16 +91,21 @@ def found():
             flash("Invalid file type. Allowed: png, jpg, jpeg, gif.", "error")
             return redirect(url_for("found"))
 
+        # Upload to Cloudinary
         filename = secure_filename(f"{int(time.time())}_{file.filename}")
-        file.save(os.path.join(UPLOAD_FOLDER, filename))
+        upload_result = cloudinary.uploader.upload(file, public_id=filename)
+        image_url = upload_result["secure_url"]
 
-        conn = get_db()
-        conn.execute(
-            "INSERT INTO found_items (image, description, contact, created_at) VALUES (?, ?, ?, ?)",
-            (filename, description, contact, datetime.utcnow().isoformat())
+        # Save in DB
+        new_item = FoundItem(
+            image=image_url,
+            description=description,
+            contact=contact,
+            created_at=datetime.utcnow().isoformat()
         )
-        conn.commit()
-        conn.close()
+        db.session.add(new_item)
+        db.session.commit()
+
         flash("Item uploaded successfully!", "success")
         return redirect(url_for("found"))
     return render_template("found.html")
@@ -121,77 +123,72 @@ def help_page():
             flash("Title is required.", "error")
             return redirect(url_for("help_page"))
 
-        conn = get_db()
-        conn.execute(
-            "INSERT INTO help_posts (title, description, contact, requester_name, created_at) VALUES (?, ?, ?, ?, ?)",
-            (title, description, contact, requester_name, datetime.utcnow().isoformat())
+        new_post = HelpPost(
+            title=title,
+            description=description,
+            contact=contact,
+            requester_name=requester_name,
+            created_at=datetime.utcnow().isoformat()
         )
-        conn.commit()
-        conn.close()
+        db.session.add(new_post)
+        db.session.commit()
+
         flash("Help request posted!", "success")
         return redirect(url_for("help_page"))
 
-    conn = get_db()
-    posts = conn.execute("SELECT * FROM help_posts ORDER BY id DESC").fetchall()
-    conn.close()
+    posts = HelpPost.query.order_by(HelpPost.id.desc()).all()
     return render_template("help.html", posts=posts)
 
-# -------- Help Chat (1-on-1 style per post) --------
+# -------- Help Chat --------
 @app.route("/help/<int:help_id>/chat", methods=["GET", "POST"])
 def help_chat(help_id):
-    # Ensure chat name in session
     if request.method == "POST":
         name = request.form.get("name", "").strip()
         if name:
             session["chat_name"] = name
         return redirect(url_for("help_chat", help_id=help_id))
 
-    conn = get_db()
-    post = conn.execute("SELECT * FROM help_posts WHERE id = ?", (help_id,)).fetchone()
-    conn.close()
+    post = HelpPost.query.get(help_id)
     if not post:
         return "Help post not found.", 404
-
     chat_name = session.get("chat_name")
     return render_template("chat.html", post=post, chat_name=chat_name)
 
 @app.route("/help/<int:help_id>/messages")
 def get_messages(help_id):
-    conn = get_db()
-    rows = conn.execute(
-        "SELECT id, help_id, sender_name, receiver_name, content, timestamp FROM messages WHERE help_id = ? ORDER BY id ASC",
-        (help_id,)
-    ).fetchall()
-    conn.close()
-    return jsonify([dict(r) for r in rows])
+    rows = Message.query.filter_by(help_id=help_id).order_by(Message.id.asc()).all()
+    return jsonify([{
+        "id": r.id,
+        "help_id": r.help_id,
+        "sender_name": r.sender_name,
+        "receiver_name": r.receiver_name,
+        "content": r.content,
+        "timestamp": r.timestamp
+    } for r in rows])
 
 @app.route("/help/<int:help_id>/send", methods=["POST"])
 def send_message(help_id):
     sender = session.get("chat_name") or request.form.get("sender_name", "").strip() or "Anonymous"
-    receiver = request.form.get("receiver_name", "").strip()  # optional
+    receiver = request.form.get("receiver_name", "").strip()
     content = request.form.get("content", "").strip()
     if not content:
         return jsonify({"ok": False, "error": "Empty message."}), 400
 
-    # Ensure post exists
-    conn = get_db()
-    post = conn.execute("SELECT id FROM help_posts WHERE id = ?", (help_id,)).fetchone()
-    if not post:
-        conn.close()
+    if not HelpPost.query.get(help_id):
         return jsonify({"ok": False, "error": "Help post not found."}), 404
 
-    conn.execute(
-        "INSERT INTO messages (help_id, sender_name, receiver_name, content, timestamp) VALUES (?, ?, ?, ?, ?)",
-        (help_id, sender, receiver, content, datetime.utcnow().isoformat())
+    msg = Message(
+        help_id=help_id,
+        sender_name=sender,
+        receiver_name=receiver,
+        content=content,
+        timestamp=datetime.utcnow().isoformat()
     )
-    conn.commit()
-    conn.close()
+    db.session.add(msg)
+    db.session.commit()
     return jsonify({"ok": True})
-#--------------------index--------------------
-@app.route("/index")
-def home():
-    return render_template("index.html")   # or whatever your homepage template is
-# -------------------- Admin --------------------
+
+# -------- Admin --------
 @app.route("/admin", methods=["GET", "POST"])
 def admin():
     if request.method == "POST":
@@ -202,13 +199,11 @@ def admin():
             return redirect(url_for("admin"))
         else:
             return render_template("admin.html", error="Invalid credentials")
+
     if session.get("admin"):
-        conn = get_db()
-        found_items = conn.execute("SELECT * FROM found_items ORDER BY id DESC").fetchall()
-        posts = conn.execute("SELECT * FROM help_posts ORDER BY id DESC").fetchall()
-        msg_count = conn.execute("SELECT help_id, COUNT(*) as c FROM messages GROUP BY help_id").fetchall()
-        conn.close()
-        counts = {row["help_id"]: row["c"] for row in msg_count}
+        found_items = FoundItem.query.order_by(FoundItem.id.desc()).all()
+        posts = HelpPost.query.order_by(HelpPost.id.desc()).all()
+        counts = {msg.help_id: db.session.query(Message).filter_by(help_id=msg.help_id).count() for msg in posts}
         return render_template("admin.html", found_items=found_items, posts=posts, counts=counts)
     return render_template("admin.html")
 
@@ -216,27 +211,21 @@ def admin():
 def admin_delete_found(item_id):
     if not session.get("admin"):
         return redirect(url_for("admin"))
-    conn = get_db()
-    row = conn.execute("SELECT image FROM found_items WHERE id = ?", (item_id,)).fetchone()
-    if row and row["image"]:
-        try:
-            os.remove(os.path.join(UPLOAD_FOLDER, row["image"]))
-        except Exception:
-            pass
-    conn.execute("DELETE FROM found_items WHERE id = ?", (item_id,))
-    conn.commit()
-    conn.close()
+    item = FoundItem.query.get(item_id)
+    if item:
+        db.session.delete(item)
+        db.session.commit()
     return redirect(url_for("admin"))
 
 @app.route("/admin/delete/help/<int:help_id>")
 def admin_delete_help(help_id):
     if not session.get("admin"):
         return redirect(url_for("admin"))
-    conn = get_db()
-    conn.execute("DELETE FROM messages WHERE help_id = ?", (help_id,))
-    conn.execute("DELETE FROM help_posts WHERE id = ?", (help_id,))
-    conn.commit()
-    conn.close()
+    post = HelpPost.query.get(help_id)
+    if post:
+        Message.query.filter_by(help_id=help_id).delete()
+        db.session.delete(post)
+        db.session.commit()
     return redirect(url_for("admin"))
 
 @app.route("/logout")
@@ -244,15 +233,7 @@ def logout():
     session.pop("admin", None)
     return redirect(url_for("index"))
 
-# --------------- Static helper ---------------
-@app.route("/uploads/<path:filename>")
-def uploaded_file(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
-
 # -------------------- Run --------------------
-import os
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
