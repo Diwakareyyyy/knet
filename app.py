@@ -206,7 +206,8 @@ def admin():
     if session.get("admin"):
         found_items = FoundItem.query.order_by(FoundItem.id.desc()).all()
         posts = HelpPost.query.order_by(HelpPost.id.desc()).all()
-        counts = {msg.help_id: db.session.query(Message).filter_by(help_id=msg.help_id).count() for msg in posts}
+   counts = {post.id: Message.query.filter_by(help_id=post.id).count() for post in posts}
+
         return render_template("admin.html", found_items=found_items, posts=posts, counts=counts)
     return render_template("admin.html")
 
