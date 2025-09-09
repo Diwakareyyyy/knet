@@ -3,3 +3,4 @@ werkzeug==3.0.1
 gunicorn
 flask_sqlalchemy
 cloudinary
+psycopg2-binary
