@@ -26,9 +26,9 @@ ADMIN_PASS = "diwa@11"
 
 # -------------------- Cloudinary Config --------------------
 cloudinary.config(
-    cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME", "your_cloud_name"),
-    api_key=os.environ.get("CLOUDINARY_API_KEY", "your_api_key"),
-    api_secret=os.environ.get("CLOUDINARY_API_SECRET", "your_api_secret")
+    cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME", "dtotaxzqn"),
+    api_key=os.environ.get("CLOUDINARY_API_KEY", "552353135944524"),
+    api_secret=os.environ.get("CLOUDINARY_API_SECRET", "KXzryxR9P8n_vwZtg415HcX_c9c")
 )
 
 # -------------------- Models --------------------
