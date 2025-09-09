@@ -29,8 +29,8 @@
       <ul class="space-y-2">
         {% for it in found_items %}
           <li class="flex items-center justify-between">
-            <span class="truncate">{{ it['description'] }} <span class="text-slate-500 text-xs">({{ it['created_at'] }})</span></span>
-            <a href="/admin/delete/found/{{ it['id'] }}" class="text-rose-600 hover:underline">Delete</a>
+            <span class="truncate">{{ it.description }} <span class="text-slate-500 text-xs">({{ it.created_at }})</span></span>
+            <a href="/admin/delete/found/{{ it.id }}" class="text-rose-600 hover:underline">Delete</a>
           </li>
         {% endfor %}
       </ul>
@@ -45,9 +45,9 @@
       <ul class="space-y-2">
         {% for p in posts %}
           <li class="flex items-center justify-between">
-            <span class="truncate">{{ p['title'] }} — by {{ p['requester_name'] or 'Anonymous' }}</span>
-            <div class="text-sm text-slate-600 mr-3">Msgs: {{ counts.get(p['id'], 0) }}</div>
-            <a href="/admin/delete/help/{{ p['id'] }}" class="text-rose-600 hover:underline">Delete</a>
+            <span class="truncate">{{ p.title }} — by {{ p.requester_name or 'Anonymous' }}</span>
+            <div class="text-sm text-slate-600 mr-3">Msgs: {{ counts.get(p.id, 0) }}</div>
+            <a href="/admin/delete/help/{{ p.id }}" class="text-rose-600 hover:underline">Delete</a>
           </li>
         {% endfor %}
       </ul>
